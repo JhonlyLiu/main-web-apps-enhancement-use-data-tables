@@ -33,7 +33,7 @@ import 'react-perfect-scrollbar/dist/css/styles.css'
 // ** Global css styles
 import '../../styles/globals.css'
 import { RouteGuard } from 'src/components/security/RouteGuard'
-import Lockscreen from 'src/components/Lockscreen'
+import Lockscreen from 'src/components/global/Lockscreen'
 import { useIdleTimer } from 'react-idle-timer'
 
 // ** Extend App Props with Emotion
@@ -91,29 +91,24 @@ const App = (props: ExtendedAppProps) => {
 
   return (
     <RouteGuard>
-      {
-        idle ? <Lockscreen/> : <></>
-      }
-        <CacheProvider value={emotionCache}>
-          <Head>
-            <title>{themeConfig.templateName}</title>
-            <meta
-              name='description'
-              content={`${themeConfig.templateName} – Hospital Information System.`}
-              />
-            <meta name='keywords' content='Siloam Hospital - Hospital Information System' />
-            <meta name='viewport' content='initial-scale=1, width=device-width' />
-          </Head>
+      {idle ? <Lockscreen /> : <></>}
+      <CacheProvider value={emotionCache}>
+        <Head>
+          <title>{themeConfig.templateName}</title>
+          <meta name='description' content={`${themeConfig.templateName} – Hospital Information System.`} />
+          <meta name='keywords' content='Siloam Hospital - Hospital Information System' />
+          <meta name='viewport' content='initial-scale=1, width=device-width' />
+        </Head>
 
-          <SettingsProvider>
-            <SettingsConsumer>
-              {({ settings }) => {
-                return <ThemeComponent settings={settings}>{getLayout(<Component {...pageProps} />)}</ThemeComponent>
-              }}
-            </SettingsConsumer>
-          </SettingsProvider>
-        </CacheProvider>
-      </RouteGuard>
+        <SettingsProvider>
+          <SettingsConsumer>
+            {({ settings }) => {
+              return <ThemeComponent settings={settings}>{getLayout(<Component {...pageProps} />)}</ThemeComponent>
+            }}
+          </SettingsConsumer>
+        </SettingsProvider>
+      </CacheProvider>
+    </RouteGuard>
   )
 }
 

@@ -1,15 +1,8 @@
 // ** React Imports
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 
 // ** MUI Imports
-import Paper from '@mui/material/Paper'
-import Table from '@mui/material/Table'
-import TableRow from '@mui/material/TableRow'
-import TableHead from '@mui/material/TableHead'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableContainer from '@mui/material/TableContainer'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import Box from '@mui/material/Box'
@@ -26,18 +19,11 @@ import { Settings } from 'src/main/@core/context/settingsContext'
 
 // ** Other Import
 import Swal from 'sweetalert2'
-import { GlobalStyles, Typography, Pagination } from '@mui/material'
+import { GlobalStyles, Typography, Pagination, Paper } from '@mui/material'
 import { deleteMenu, listMenu } from 'src/main/services/MenuManagement'
 import Link from 'next/link'
 import { Link as MuiLink } from '@mui/material'
-
-interface Column {
-  id: 'menuname' | 'menuparent' | 'menulink' | 'icon' | 'status'
-  label: string
-  minWidth?: number
-  align?: 'center'
-  format?: (value: number) => string
-}
+import DisplayDataTable from 'src/components/global/DataTables'
 
 interface Props {
   hidden: boolean
@@ -46,68 +32,55 @@ interface Props {
   saveSettings: (values: Settings) => void
 }
 
-const columns: readonly Column[] = [
-  { id: 'menuname', label: 'Menu Name' },
-  { id: 'menuparent', label: 'Menu Parent', align: 'center' },
-  { id: 'menulink', label: 'Menu Link', align: 'center' },
-  { id: 'icon', label: 'Icon', align: 'center' },
-  {
-    id: 'status',
-    label: 'Status',
-    align: 'center',
-    format: (value: number) => value.toLocaleString('en-US')
-  }
-]
-
-interface MenuData {
-  data: Data[]
-  total: number
-}
-
-interface Data {
-  id: string
-  name: string
-  parent_id: string
-  link: string
-  icon: string
-  status: boolean
-}
-
 const MenuList = (props: Props) => {
   // ** Props
   const { hidden, toggleNavVisibility } = props
-
   const router = useRouter()
 
   // ** States
-  const [allData, setAllData] = useState<MenuData>()
+  const [allMenu, setAllMenu] = useState([])
+  const [currentPage, setCurrentPage] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [totalRow, setTotalRow] = useState(0)
+  const [menuName, setMenuName] = useState('')
 
-  const [page, setPage] = useState<number>(1)
-  const [search, setSearch] = useState<string>("")
-
-
-  async function handleListMenu() {
+  const fetchAllMenu = useCallback(async (page: number): Promise<void> => {
+    setLoading(true)
     try {
-      const response = await listMenu(page, search)
-
-      // Refresh Data
-      setAllData({"data": [], "total": 0})
-      setAllData(response.data)
+      const response = await listMenu(page, menuName ?? '')
+      setAllMenu(response.data.data)
+      setCurrentPage(response.data.currentPage)
+      setTotalRow(response.data.total)
+      setLoading(false)
     } catch (err) {
       console.log(err)
     }
+  }, [])
+
+  /**
+   * handlePageChange
+   * @param page
+   */
+  const handlePageChange = (page: any) => {
+    fetchAllMenu(page)
   }
 
   async function onDelete(id: string) {
     try {
       await deleteMenu(id)
-      await handleListMenu()
+      await fetchAllMenu(currentPage)
     } catch (err) {
       console.log(err)
     }
   }
 
-  const confirmDelete = (row: Data) => {
+  /**
+   * confirmDelete
+   * handle give alert when menu want to be deleted and hit API to delete menu
+   * @param row
+   */
+
+  const confirmDelete = (row: any) => {
     Swal.fire({
       title: 'Are you sure want to delete this menu?',
       text: 'This will remove menu and all data associated with it',
@@ -125,23 +98,67 @@ const MenuList = (props: Props) => {
   }
 
   async function onClickSearchButton() {
-    setPage(1);
-
-    await handleListMenu()
-  }
-
-  function countTotalPagination(totalData: number) {
-    const total = Math.floor(totalData / 10)
-    if (totalData % 10 === 0) {
-      return total
-    } else {
-      return total + 1
-    }
+    setCurrentPage(1)
+    await fetchAllMenu(currentPage)
   }
 
   useEffect(() => {
-    handleListMenu()
-  }, [])
+    fetchAllMenu(currentPage)
+  }, [fetchAllMenu])
+
+  const columns = [
+    {
+      name: 'Organization Name',
+      selector: (row: any) => row.name
+    },
+    {
+      name: 'Menu Parent',
+      selector: (row: any) => row.parent_id
+    },
+    {
+      name: 'Menu Link',
+      selector: (row: any) => row.link
+    },
+    {
+      name: 'Icon',
+      selector: (row: any) => row.icon
+    },
+    {
+      name: 'Status',
+      selector: (row: any) =>
+        row.status == true ? (
+          <Chip color='success' label='ACTIVE' sx={{ height: 24, fontSize: '0.75rem' }} />
+        ) : (
+          <Chip color='error' label='INACTIVE' sx={{ height: 24, fontSize: '0.75rem' }} />
+        )
+    },
+    {
+      name: 'Action',
+      cell: (row: any) => (
+        <>
+          <Button size='small' variant='contained' sx={{ color: 'white!important' }}>
+            <Link
+              href={{
+                pathname: '/menu-management/edit-menu',
+                query: row.id
+              }}
+            >
+              <div>Edit</div>
+            </Link>
+          </Button>
+          <Button
+            variant='contained'
+            color='error'
+            size='small'
+            onClick={() => confirmDelete(row)}
+            sx={{ marginX: '1px', color: 'white!important' }}
+          >
+            Delete
+          </Button>
+        </>
+      )
+    }
+  ]
 
   return (
     <div>
@@ -169,7 +186,6 @@ const MenuList = (props: Props) => {
           <TextField
             size='small'
             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 4 }, width: '500px' }}
-            onChange={event => setSearch(event.target.value)}
             InputProps={{
               startAdornment: (
                 <InputAdornment position='start'>
@@ -178,7 +194,12 @@ const MenuList = (props: Props) => {
               )
             }}
           />
-          <Button size='small' variant='contained' sx={{ color: 'white!important' }} onClick={() => onClickSearchButton()}>
+          <Button
+            size='small'
+            variant='contained'
+            sx={{ color: 'white!important' }}
+            onClick={() => onClickSearchButton()}
+          >
             <div>Search</div>
           </Button>
         </Box>
@@ -190,72 +211,7 @@ const MenuList = (props: Props) => {
         </Box>
       </Box>
       <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <TableContainer sx={{ maxHeight: 440 }}>
-          <Table stickyHeader aria-label='sticky table'>
-            <TableHead>
-              <TableRow>
-                {columns.map(column => (
-                  <TableCell key={column.id} align={column.align} sx={{ minWidth: column.minWidth }}>
-                    {column.label}
-                  </TableCell>
-                ))}
-                <TableCell align='center' sx={{ minWidth: 200 }}>
-                  Action
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {allData?.data.map((row: Data) => (
-                <TableRow hover key={row.name} sx={{ '&:last-of-type td, &:last-of-type th': { border: 0 } }}>
-                  <TableCell>{row.name}</TableCell>
-                  <TableCell align='center'>{row.parent_id}</TableCell>
-                  <TableCell align='center'>
-                    <MuiLink onClick={() => router.push(row.link)}>{row.link}</MuiLink>
-                  </TableCell>
-                  <TableCell align='center'>{row.icon}</TableCell>
-                  <TableCell align='center'>
-                    {row.status ? (
-                      <Chip color='success' label='ACTIVE' sx={{ height: 24, fontSize: '0.75rem' }} />
-                    ) : (
-                      <Chip color='error' label='INACTIVE' sx={{ height: 24, fontSize: '0.75rem' }} />
-                    )}
-                  </TableCell>
-                  <TableCell align='center'>
-                    <Button size='small' variant='contained' sx={{ color: 'white!important' }}>
-                      <Link
-                        href={{
-                          pathname: '/menu-management/edit-menu',
-                          query: row.id
-                        }}
-                      >
-                        <div>Edit</div>
-                      </Link>
-                    </Button>
-                    <Button
-                      variant='contained'
-                      color='error'
-                      size='small'
-                      onClick={() => confirmDelete(row)}
-                      sx={{ marginX: '5px', color: 'white!important' }}
-                    >
-                      Delete
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        <Box sx={{ display: 'flex', justifyContent: 'end', padding: '5px' }}>
-          <Pagination
-            count={countTotalPagination(allData?.total ?? 1)}
-            page={page}
-            onChange={async (e, value) => {
-              setPage(value);
-              await handleListMenu()
-            }}
-          />
-        </Box>
+        {DisplayDataTable(columns, allMenu, loading, totalRow, currentPage, handlePageChange)}
       </Paper>
     </div>
   )

@@ -1,16 +1,9 @@
 // ** React Imports
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { useRouter } from 'next/router'
 
 // ** MUI Imports
-import Paper from '@mui/material/Paper'
-import Table from '@mui/material/Table'
-import TableRow from '@mui/material/TableRow'
-import TableHead from '@mui/material/TableHead'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableContainer from '@mui/material/TableContainer'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import Box from '@mui/material/Box'
@@ -27,18 +20,10 @@ import { Settings } from 'src/main/@core/context/settingsContext'
 
 // ** Other Import
 import Swal from 'sweetalert2'
-import { GlobalStyles, Pagination, Typography } from '@mui/material'
+import { GlobalStyles, Paper, Typography } from '@mui/material'
 import { deleteRole, listRole } from 'src/main/services/RoleManagement'
-import { TruckDelivery } from 'mdi-material-ui'
 import Link from 'next/link'
-
-interface Column {
-  id: 'role' | 'code' | 'status'
-  label: string
-  minWidth?: number
-  align?: 'center'
-  format?: (value: number) => string
-}
+import DisplayDataTable from 'src/components/global/DataTables'
 
 interface Props {
   hidden: boolean
@@ -47,91 +32,61 @@ interface Props {
   saveSettings: (values: Settings) => void
 }
 
-const columns: readonly Column[] = [
-  { id: 'role', label: 'Role' },
-  {
-    id: 'code',
-    label: 'Code',
-    align: 'center'
-  },
-  {
-    id: 'status',
-    label: 'Status',
-    align: 'center',
-    format: (value: number) => value.toLocaleString('en-US')
-  }
-]
-
-interface Data {
-  id: string
-  name: string
-  code: string
-  status: boolean
-}
-
 const RoleList = (props: Props) => {
   // ** Props
   const { hidden, toggleNavVisibility } = props
 
   // ** States
-  const [allData, setAllData] = useState<Data[]>()
+  const [allRole, setAllRole] = useState([] as any[])
+  const [currentPage, setCurrentPage] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [totalRow, setTotalRow] = useState(0)
+  const [roleName, setRoleName] = useState('')
 
-  const [page, setPage] = useState<number>(1)
-
-  const [search, setSearch] = useState<string>("")
-
-  async function handleListRole() {
-    const getListRole = async () => {
-      const response = await listRole(page, search)
-      console.log(response.data)
-      setAllData(response.data.data)
+  const fetchAllRole = useCallback(async (page: number): Promise<void> => {
+    setLoading(true)
+    try {
+      const response = await listRole(page, roleName ?? '')
+      setAllRole(response.data.data)
+      setCurrentPage(response.data.currentPage)
+      setTotalRow(response.data.total)
+      setLoading(false)
+    } catch (err) {
+      console.log(err)
     }
-    getListRole()
+  }, [])
+
+  /**
+   * handlePageChange
+   * @param page
+   */
+  const handlePageChange = (page: any) => {
+    fetchAllRole(page)
   }
 
   async function onClickSearchButton() {
-    setPage(1);
-
-    await handleListRole()
+    setCurrentPage(1)
+    await fetchAllRole(currentPage)
   }
-
-  // export async function listRole(page: number, search: string) {
-  //   let finalUri = USER_MANAGEMENT_URI + '/v1/role/list?page=' + page + '&per_page=1&search=' + search
-  //   return ApiHandler.handleRequest('GET', finalUri)
-  // }
-
-  // const getRole = async () => {
-  //   const response = await listRole(1, '')
-  //   const result = response.data.data.map((element: any) => {
-  //     return {
-  //       label: element.name,
-  //       value: element.id
-  //     }
-  //   })
-  //   setAllRole(result)
-  // }
 
   const router = useRouter()
 
   async function onDelete(id: string) {
     try {
       await deleteRole(id)
-      await handleListRole()
+      await fetchAllRole(currentPage)
     } catch (err) {
       console.log(err)
     }
   }
 
-  function countTotalPagination(totalData: number) {
-    const total = Math.floor(totalData / 10)
-    if (totalData % 10 === 0) {
-      return total
-    } else {
-      return total + 1
-    }
-  }
+  /**
+   * confirmDelete
+   * handle give alert when role want to be deleted and hit API to delete role
+   * @param row
+   */
 
-  const confirmDelete = (row: Data) => {
+  const confirmDelete = (row: any) => {
     Swal.fire({
       title: 'Are you sure want to delete this role?',
       showDenyButton: true,
@@ -148,8 +103,55 @@ const RoleList = (props: Props) => {
   }
 
   useEffect(() => {
-    handleListRole()
-  }, [])
+    fetchAllRole(currentPage)
+  }, [fetchAllRole])
+
+  const columns = [
+    {
+      name: 'Organization Name',
+      selector: (row: any) => row.name
+    },
+    {
+      name: 'Organization Code',
+      selector: (row: any) => row.code
+    },
+    {
+      name: 'Status',
+      selector: (row: any) =>
+        row.status == true ? (
+          <Chip color='success' label='ACTIVE' sx={{ height: 24, fontSize: '0.75rem' }} />
+        ) : (
+          <Chip color='error' label='INACTIVE' sx={{ height: 24, fontSize: '0.75rem' }} />
+        )
+    },
+
+    {
+      name: 'Action',
+      cell: (row: any) => (
+        <>
+          <Button size='small' variant='contained' href='/role-management/edit-role' sx={{ color: 'white!important' }}>
+            <Link
+              href={{
+                pathname: '/role-management/edit-role',
+                query: row.id
+              }}
+            >
+              <div>Edit</div>
+            </Link>
+          </Button>
+          <Button
+            variant='contained'
+            color='error'
+            size='small'
+            onClick={() => confirmDelete(row)}
+            sx={{ marginX: '5px', color: 'white!important' }}
+          >
+            Delete
+          </Button>
+        </>
+      )
+    }
+  ]
 
   return (
     <div>
@@ -177,7 +179,6 @@ const RoleList = (props: Props) => {
           <TextField
             size='small'
             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 4 }, width: '500px' }}
-            onChange={event => setSearch(event.target.value)}
             InputProps={{
               startAdornment: (
                 <InputAdornment position='start'>
@@ -186,7 +187,12 @@ const RoleList = (props: Props) => {
               )
             }}
           />
-          <Button size='small' variant='contained' sx={{ color: 'white!important' }} onClick={() => onClickSearchButton()}>
+          <Button
+            size='small'
+            variant='contained'
+            sx={{ color: 'white!important' }}
+            onClick={() => onClickSearchButton()}
+          >
             <div>Search</div>
           </Button>
         </Box>
@@ -198,72 +204,7 @@ const RoleList = (props: Props) => {
         </Box>
       </Box>
       <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <TableContainer sx={{ maxHeight: 440 }}>
-          <Table stickyHeader aria-label='sticky table'>
-            <TableHead>
-              <TableRow>
-                {columns.map(column => (
-                  <TableCell key={column.id} align={column.align} sx={{ minWidth: column.minWidth }}>
-                    {column.label}
-                  </TableCell>
-                ))}
-                <TableCell align='center'>Action</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {allData?.map((row: Data) => (
-                <TableRow hover key={row.name} sx={{ '&:last-of-type td, &:last-of-type th': { border: 0 } }}>
-                  <TableCell>{row.name}</TableCell>
-                  <TableCell align='center'>{row.code}</TableCell>
-                  <TableCell align='center'>
-                    {row.status ? (
-                      <Chip color='success' label='ACTIVE' sx={{ height: 24, fontSize: '0.75rem' }} />
-                    ) : (
-                      <Chip color='error' label='INACTIVE' sx={{ height: 24, fontSize: '0.75rem' }} />
-                    )}
-                  </TableCell>
-                  <TableCell align='center'>
-                    <Button
-                      size='small'
-                      variant='contained'
-                      href='/role-management/edit-role'
-                      sx={{ color: 'white!important' }}
-                    >
-                      <Link
-                        href={{
-                          pathname: '/role-management/edit-role',
-                          query: row.id
-                        }}
-                      >
-                        <div>Edit</div>
-                      </Link>
-                    </Button>
-                    <Button
-                      variant='contained'
-                      color='error'
-                      size='small'
-                      onClick={() => confirmDelete(row)}
-                      sx={{ marginX: '5px', color: 'white!important' }}
-                    >
-                      Delete
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        <Box sx={{ display: 'flex', justifyContent: 'end', padding: '5px' }}>
-          <Pagination
-            count={countTotalPagination(10)}
-            page={page}
-            onChange={async (e, value) => {
-              console.log("Change target: " + value)
-              setPage(value);
-              await handleListRole()
-            }}
-          />
-        </Box>
+        {DisplayDataTable(columns, allRole, loading, totalRow, currentPage, handlePageChange)}
       </Paper>
     </div>
   )
