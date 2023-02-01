@@ -1,0 +1,20 @@
+stages:
+  - execute-script
+
+execute-script-development:
+  stage: execute-script
+  before_script:
+    - 'which ssh-agent || ( apt-get install -qq openssh-client )'
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 700 ~/.ssh/id_rsa
+    - eval "$(ssh-agent -s)"
+    - ssh-add ~/.ssh/id_rsa
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\tPort 2222\n" > ~/.ssh/config 
+    
+  script:
+    - ssh $PROJECT_USER@$PROJECT_HOST "bash /home/devops/deploy/deploy-main-web-apps.sh"
+  only:
+    - development
+  tags:
+    - siloam-runner
